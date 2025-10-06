@@ -1,0 +1,13 @@
+stages:
+  - post_merge
+
+post_merge_job:
+  stage: post_merge
+  script:
+    - echo "Merge detected on $CI_COMMIT_REF_NAME"
+    - echo "Getting commits merged in this MR..."
+    - git fetch origin
+    - echo "The commits introduced in this merge are:"
+    - git log $CI_MERGE_REQUEST_DIFF_BASE_SHA..$CI_COMMIT_SHA --pretty=format:"%H %s"
+  only:
+    - develop/2025
