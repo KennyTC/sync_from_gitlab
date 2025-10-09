@@ -5,7 +5,8 @@ post_merge_job:
   stage: post_merge
   script:
     # Extract the source branch name from the merge commit
-    - SOURCE_BRANCH=$(git log -1 --pretty=%B | grep -oP "Merge branch '\K[^']+")
+    # - SOURCE_BRANCH=$(git log -1 --pretty=%B | grep -oP "Merge branch '\K[^']+")
+    - SOURCE_BRANCH = "feature/ft8"
     - echo "Source branch that was merged:" $SOURCE_BRANCH
     - echo "GitHub token:" $GITHUB_TOKEN
     # Configure git
