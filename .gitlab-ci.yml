@@ -23,7 +23,7 @@ post_merge_job:
     - git checkout origin/$CI_COMMIT_REF_NAME
     # Merge the current state of develop/2025 into GitHub main
     - git checkout temp-github-main
-    - git merge --no-ff origin/$CI_COMMIT_REF_NAME -m "Sync from GitLab $CI_COMMIT_REF_NAME (merged $SOURCE_BRANCH)"
+    - git merge --no-ff --allow-unrelated-histories origin/$CI_COMMIT_REF_NAME -m "Sync from GitLab $CI_COMMIT_REF_NAME (merged $SOURCE_BRANCH)"
     # Create release branch based on the source branch name
     - RELEASE_BRANCH="release/$SOURCE_BRANCH"
     - echo "RELEASE BRANCH" $RELEASE_BRANCH 
