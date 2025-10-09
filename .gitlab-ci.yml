@@ -33,7 +33,8 @@ post_merge_job:
     - echo "RELEASE BRANCH" $RELEASE_BRANCH 
     - git checkout -b $RELEASE_BRANCH
     # Push the release branch to GitHub
-    - git push github $RELEASE_BRANCH
+    # - git push github $RELEASE_BRANCH
+    - git push https://${GITHUB_TOKEN}@github.com/KennyTC/sync_from_gitlab.git $RELEASE_BRANCH
     # Create a Pull Request using GitHub API
     - echo "Creating pull request on GitHub..."
     - COMMIT_LIST=$(git log $CI_MERGE_REQUEST_DIFF_BASE_SHA..$CI_COMMIT_SHA --pretty=format:'%h %s')
