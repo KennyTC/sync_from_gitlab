@@ -3,6 +3,8 @@ stages:
 
 post_merge_job:
   stage: post_merge
+  variables:
+    GIT_TERMINAL_PROMPT: "0"
   script:
     # Extract the source branch name from the merge commit
     # - SOURCE_BRANCH=$(git log -1 --pretty=%B | grep -oP "Merge branch '\K[^']+")
