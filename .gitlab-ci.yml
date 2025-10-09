@@ -1,9 +1,10 @@
 stages:
   - post_merge
+
 post_merge_job:
   stage: post_merge
   script:
-    - echo "Merge detected on $CI_COMMIT_REF_NAME"
+    - echo "Merge detected on" $CI_COMMIT_REF_NAME
     - echo "Getting commits merged in this MR..."
     - git fetch origin
     - echo "The commits introduced in this merge are:"
@@ -14,6 +15,7 @@ post_merge_job:
     # Configure git
     - git config --global user.email "gitlab-ci@yourdomain.com"
     - git config --global user.name "GitLab CI Bot"
+    - git config --global credential.helper store
     # Add GitHub remote
     - git remote add github https://${GITHUB_TOKEN}@github.com/KennyTC/sync_from_gitlab.git || git remote set-url github https://${GITHUB_TOKEN}@github.com/KennyTC/sync_from_gitlab.git
     # Fetch from GitHub
@@ -30,8 +32,8 @@ post_merge_job:
     - RELEASE_BRANCH="release/$SOURCE_BRANCH"
     - git checkout -b $RELEASE_BRANCH
     # Push the release branch to GitHub
-    - git push github $RELEASE_BRANCH
-     # Create a Pull Request using GitHub API
+    - git push https://${GITHUB_TOKEN}@github.com/KennyTC/sync_from_gitlab.git $RELEASE_BRANCH
+    # Create a Pull Request using GitHub API
     - echo "Creating pull request on GitHub..."
     - COMMIT_LIST=$(git log $CI_MERGE_REQUEST_DIFF_BASE_SHA..$CI_COMMIT_SHA --pretty=format:'%h %s')
     - PR_RESPONSE=$(curl -s -X POST -H "Authorization:token ${GITHUB_TOKEN}" -H "Accept:application/vnd.github.v3+json" https://api.github.com/repos/KennyTC/sync_from_gitlab/pulls -d "{\"title\":\"Sync from GitLab:$SOURCE_BRANCH\",\"head\":\"$RELEASE_BRANCH\",\"base\":\"main\",\"body\":\"Automated sync from GitLab.\\n\\nSource branch:\`$SOURCE_BRANCH\`\\nMerged into:\`$CI_COMMIT_REF_NAME\`\\n\\nCommits:\\n\`\`\`\\n$COMMIT_LIST\\n\`\`\`\"}")
@@ -40,3 +42,4 @@ post_merge_job:
     - echo "Pull request created:" $PR_URL
   only:
     - develop/2025
+  when: on_success
