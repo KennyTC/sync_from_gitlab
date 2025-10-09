@@ -4,3 +4,4 @@ feature 4: first commit
 feature 5: first commit
 feature 6: first commit
 feature 7: first commit
+feature 8: first commit
