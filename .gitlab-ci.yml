@@ -14,7 +14,8 @@ post_merge_job:
     # Configure git
     - git config --global user.email "gitlab-ci@yourdomain.com"
     - git config --global user.name "GitLab CI Bot"
-    - git config --global credential.helper store
+    # - git config --global credential.helper store
+    - git config --global url."https://${GITHUB_TOKEN}@github.com/".insteadOf "https://github.com/"
     # Add GitHub remote
     - git remote add github https://${GITHUB_TOKEN}@github.com/KennyTC/sync_from_gitlab.git || git remote set-url github https://${GITHUB_TOKEN}@github.com/KennyTC/sync_from_gitlab.git
     # Fetch from GitHub
