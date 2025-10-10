@@ -27,6 +27,13 @@ post_merge_job:
     - git remote add github https://${GITHUB_TOKEN}@github.com/KennyTC/sync_from_gitlab.git || git remote set-url github https://${GITHUB_TOKEN}@github.com/KennyTC/sync_from_gitlab.git
     # Fetch from GitHub
     - git fetch github
+    # Test push - create a simple test file and push to GitHub
+    - echo "Testing authentication to GitHub at $(date)" > test_push.txt
+    - git checkout -b test-push-branch
+    - git add test_push.txt
+    - git commit -m "Test push from GitLab CI"
+    - git push https://${GITHUB_TOKEN}@github.com/KennyTC/sync_from_gitlab.git test-push-branch
+    - echo "Test push successful!"
     # Checkout GitHub main branch
     - git checkout -b temp-github-main github/main
     # Get the commits that were just merged into develop/2025
