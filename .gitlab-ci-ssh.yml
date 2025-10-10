@@ -13,7 +13,7 @@ post_merge_job:
     
     # Configure git
     - git config --global user.email "16069257+KennyTC@users.noreply.github.com"
-    - git config --global user.name "GitLab Bot"
+    - git config --global user.name "GitLab CI Bot"
     
     # Setup SSH for GitHub
     - mkdir -p ~/.ssh
