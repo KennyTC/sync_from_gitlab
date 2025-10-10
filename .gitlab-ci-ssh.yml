@@ -97,8 +97,18 @@ post_merge_job:
     
     # Create a Pull Request using GitHub API
     - echo "Creating pull request on GitHub..."
-    # Debug: Check if GITHUB_TOKEN is set
-   
+    # Check if GITHUB_TOKEN is set
+    - |
+      if [ -z "$GITHUB_TOKEN" ]; then
+        echo "ERROR: GITHUB_TOKEN is not set. Cannot create pull request."
+        exit 1
+      fi
+    - echo "GITHUB_TOKEN is set (length: ${#GITHUB_TOKEN})"
+    - COMMIT_LIST=$(git log $CI_MERGE_REQUEST_DIFF_BASE_SHA..$CI_COMMIT_SHA --pretty=format:'%h %s')
+    - PR_RESPONSE=$(curl -s -X POST -H "Authorization:token ${GITHUB_TOKEN}" -H "Accept:application/vnd.github.v3+json" https://api.github.com/repos/KennyTC/sync_from_gitlab/pulls -d "{\"title\":\"Sync from GitLab:$SOURCE_BRANCH\",\"head\":\"$RELEASE_BRANCH\",\"base\":\"main\",\"body\":\"Automated sync from GitLab.\\n\\nSource branch:\`$SOURCE_BRANCH\`\\nMerged into:\`$CI_COMMIT_REF_NAME\`\\n\\nCommits:\\n\`\`\`\\n$COMMIT_LIST\\n\`\`\`\"}")
+    - echo "$PR_RESPONSE"
+    - PR_URL=$(echo "$PR_RESPONSE" | grep -oP '"html_url":"\K[^"]+')
+    - echo "Pull request created:" $PR_URL
   
   only:
     - develop/2025
