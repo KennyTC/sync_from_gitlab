@@ -1,0 +1,74 @@
+stages:
+  - post_merge
+
+post_merge_job:
+  stage: post_merge
+  variables:
+    GIT_TERMINAL_PROMPT: "0"
+  script:
+    # Extract the source branch name from the merge commit
+    # - SOURCE_BRANCH=$(git log -1 --pretty=%B | grep -oP "Merge branch '\K[^']+")
+    - SOURCE_BRANCH="feature/ft8"
+    - echo "Source branch that was merged:" $SOURCE_BRANCH
+    
+    # Configure git
+    - git config --global user.email "gitlab-ci@yourdomain.com"
+    - git config --global user.name "GitLab CI Bot"
+    
+    # Setup SSH for GitHub
+    - mkdir -p ~/.ssh
+    - chmod 700 ~/.ssh
+    - echo "$GITHUB_SSH_PRIVATE_KEY" | tr -d '\r' > ~/.ssh/id_rsa
+    - chmod 600 ~/.ssh/id_rsa
+    - ssh-keyscan github.com >> ~/.ssh/known_hosts
+    - chmod 644 ~/.ssh/known_hosts
+    - echo "SSH key configured"
+    
+    # Test SSH connection
+    - ssh -T git@github.com || true
+    
+    # Add GitHub remote using SSH
+    - git remote add github git@github.com:KennyTC/sync_from_gitlab.git || git remote set-url github git@github.com:KennyTC/sync_from_gitlab.git
+    
+    # Fetch from GitHub
+    - git fetch github
+    
+    # Test push - create a simple test file and push to GitHub
+    - echo "Testing SSH authentication to GitHub at $(date)" > test_push_ssh.txt
+    - git checkout -b test-push-ssh-branch
+    - git add test_push_ssh.txt
+    - git commit -m "Test SSH push from GitLab CI"
+    - git push github test-push-ssh-branch
+    - echo "Test SSH push successful!"
+    
+    # Checkout GitHub main branch
+    - git checkout -b temp-github-main github/main
+    
+    # Get the commits that were just merged into develop/2025
+    - git fetch origin $CI_COMMIT_REF_NAME
+    - git checkout origin/$CI_COMMIT_REF_NAME
+    
+    # Merge the current state of develop/2025 into GitHub main
+    - git checkout temp-github-main
+    - git merge --no-ff --allow-unrelated-histories origin/$CI_COMMIT_REF_NAME -m "Sync from GitLab $CI_COMMIT_REF_NAME (merged $SOURCE_BRANCH)"
+    
+    # Create release branch based on the source branch name
+    - RELEASE_BRANCH="release/$SOURCE_BRANCH"
+    - git checkout -b $RELEASE_BRANCH
+    
+    # Push the release branch to GitHub using SSH
+    - git push github $RELEASE_BRANCH
+    
+    # Create a Pull Request using GitHub API
+    - echo "Creating pull request on GitHub..."
+    - COMMIT_LIST=$(git log $CI_MERGE_REQUEST_DIFF_BASE_SHA..$CI_COMMIT_SHA --pretty=format:'%h %s')
+    - PR_RESPONSE=$(curl -s -X POST -H "Authorization:token ${GITHUB_TOKEN}" -H "Accept:application/vnd.github.v3+json" https://api.github.com/repos/KennyTC/sync_from_gitlab/pulls -d "{\"title\":\"Sync from GitLab:$SOURCE_BRANCH\",\"head\":\"$RELEASE_BRANCH\",\"base\":\"main\",\"body\":\"Automated sync from GitLab.\\n\\nSource branch:\`$SOURCE_BRANCH\`\\nMerged into:\`$CI_COMMIT_REF_NAME\`\\n\\nCommits:\\n\`\`\`\\n$COMMIT_LIST\\n\`\`\`\"}")
+    - echo "$PR_RESPONSE"
+    - PR_URL=$(echo "$PR_RESPONSE" | grep -oP '"html_url":"\K[^"]+')
+    - echo "Pull request created:" $PR_URL
+  
+  only:
+    - develop/2025
+  
+  when: on_success
+
