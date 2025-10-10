@@ -7,8 +7,8 @@ post_merge_job:
     GIT_TERMINAL_PROMPT: "0"
   script:
     # Extract the source branch name from the merge commit
-    #- SOURCE_BRANCH=$(git log -1 --pretty=%B | grep -oP "Merge branch '\K[^']+")
-    - SOURCE_BRANCH="feature/ft10"
+    - SOURCE_BRANCH=$(git log -1 --pretty=%B | grep -oP "Merge branch '\K[^']+")
+    # - SOURCE_BRANCH="feature/ft10"
     - echo "Source branch that was merged:" $SOURCE_BRANCH
     
     # Configure git
