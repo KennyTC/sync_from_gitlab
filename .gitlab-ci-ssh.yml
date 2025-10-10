@@ -19,10 +19,21 @@ post_merge_job:
     - mkdir -p ~/.ssh
     - chmod 700 ~/.ssh
     - echo "$GITHUB_SSH_PRIVATE_KEY" | tr -d '\r' > ~/.ssh/id_rsa
+    - echo "GITHUB_SSH_PRIVATE_KEY" $GITHUB_SSH_PRIVATE_KEY 
     - chmod 600 ~/.ssh/id_rsa
     - ssh-keyscan github.com >> ~/.ssh/known_hosts
     - chmod 644 ~/.ssh/known_hosts
     - echo "SSH key configured"
+
+    # Debug: Check SSH key
+    - echo "Checking SSH private key file..."
+    - ls -la ~/.ssh/
+    - echo "First line of private key:"
+    - head -n 1 ~/.ssh/id_rsa
+    - echo "Last line of private key:"
+    - tail -n 1 ~/.ssh/id_rsa
+    - echo "SSH key fingerprint:"
+    - ssh-keygen -l -f ~/.ssh/id_rsa || echo "Failed to get fingerprint"
     
     # Test SSH connection
     - ssh -T git@github.com || true
