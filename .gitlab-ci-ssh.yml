@@ -12,7 +12,7 @@ post_merge_job:
     - echo "Source branch that was merged:" $SOURCE_BRANCH
     
     # Configure git
-    - git config --global user.email "gitlab-ci@yourdomain.com"
+    - git config --global user.email "16069257+KennyTC@users.noreply.github.com"
     - git config --global user.name "GitLab CI Bot"
     
     # Setup SSH for GitHub
