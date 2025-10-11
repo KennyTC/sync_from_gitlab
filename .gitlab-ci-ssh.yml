@@ -15,7 +15,7 @@ pre_merge_job:
   script:
     # Get the source branch name from the merge request
     - SOURCE_BRANCH=$CI_MERGE_REQUEST_SOURCE_BRANCH_NAME
-    - echo "Source branch from approved MR:" $SOURCE_BRANCH
+    - echo "Source branch" $SOURCE_BRANCH
     - echo "Target branch:" $CI_MERGE_REQUEST_TARGET_BRANCH_NAME
     - echo "MR Title:" $CI_MERGE_REQUEST_TITLE
     
