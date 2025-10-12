@@ -124,5 +124,3 @@ pre_merge_job:
     # Requires manual trigger - click "Play" button after MR is approved
     - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "develop/2025"
       when: manual
-    # Don't run in any other case
-    - when: never
