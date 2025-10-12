@@ -1,10 +1,3 @@
-workflow:
-  rules:
-    # Enable merge request pipelines for MRs targeting develop/2025
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "develop/2025"
-    # Disable all other pipelines (branch pushes, etc.)
-    - when: never
-
 stages:
   - pre_merge
 
