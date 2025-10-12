@@ -1,5 +1,6 @@
 stages:
   - pre_merge
+  - check_merge_status
 
 pre_merge_job:
   stage: pre_merge
@@ -110,6 +111,20 @@ pre_merge_job:
     - COMMIT_LIST=$(git log origin/$CI_MERGE_REQUEST_TARGET_BRANCH_NAME..origin/$SOURCE_BRANCH --pretty=format:'%h %s')
     - PR_RESPONSE=$(curl -s -X POST -H "Authorization:token ${GITHUB_TOKEN}" -H "Accept:application/vnd.github.v3+json" https://api.github.com/repos/KennyTC/sync_from_gitlab/pulls -d "{\"title\":\"Sync from GitLab:$SOURCE_BRANCH\",\"head\":\"$RELEASE_BRANCH\",\"base\":\"main\",\"body\":\"Automated sync from GitLab.\\n\\nSource branch:\`$SOURCE_BRANCH\`\\nMerged into:\`$CI_COMMIT_REF_NAME\`\\n\\nCommits:\\n\`\`\`\\n$COMMIT_LIST\\n\`\`\`\"}")
     - echo "$PR_RESPONSE"
+    
+    # Extract PR number and URL from response
+    - PR_NUMBER=$(echo "$PR_RESPONSE" | grep -o '"number":[0-9]*' | grep -o '[0-9]*' | head -1)
+    - PR_URL=$(echo "$PR_RESPONSE" | grep -o '"html_url":"[^"]*"' | head -1 | cut -d'"' -f4)
+    - echo "✅ Pull Request created successfully!"
+    - echo "📝 PR Number: $PR_NUMBER"
+    - echo "🔗 PR URL: $PR_URL"
+    - echo "PR_NUMBER=$PR_NUMBER" >> pr_info.env
+    - echo "RELEASE_BRANCH=$RELEASE_BRANCH" >> pr_info.env
+    - echo "SOURCE_BRANCH=$SOURCE_BRANCH" >> pr_info.env
+  artifacts:
+    reports:
+      dotenv: pr_info.env
+    expire_in: 30 days
   
   
   rules:
@@ -117,3 +132,80 @@ pre_merge_job:
     # Requires manual trigger - click "Play" button after MR is approved
     - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "develop/2025"
       when: manual
+
+check_github_pr_status:
+  stage: check_merge_status
+  variables:
+    GIT_TERMINAL_PROMPT: "0"
+  script:
+    - echo "Checking GitHub PR merge status..."
+    - echo "PR Number: $PR_NUMBER"
+    - echo "Source Branch: $SOURCE_BRANCH"
+    - echo "Release Branch: $RELEASE_BRANCH"
+    
+    # Check if GITHUB_TOKEN is set
+    - |
+      if [ -z "$GITHUB_TOKEN" ]; then
+        echo "ERROR: GITHUB_TOKEN is not set."
+        exit 1
+      fi
+    
+    # Check if PR_NUMBER exists
+    - |
+      if [ -z "$PR_NUMBER" ]; then
+        echo "ERROR: PR_NUMBER not found. Make sure pre_merge_job completed successfully."
+        exit 1
+      fi
+    
+    # Query GitHub API for PR status
+    - PR_STATUS=$(curl -s -H "Authorization:token ${GITHUB_TOKEN}" -H "Accept:application/vnd.github.v3+json" https://api.github.com/repos/KennyTC/sync_from_gitlab/pulls/$PR_NUMBER)
+    - echo "PR Status Response:"
+    - echo "$PR_STATUS" | grep -E '"state"|"merged"|"closed_at"|"merged_at"'
+    
+    # Check if PR is merged
+    - MERGED=$(echo "$PR_STATUS" | grep -o '"merged":true')
+    - STATE=$(echo "$PR_STATUS" | grep -o '"state":"[^"]*"' | cut -d'"' -f4)
+    - MERGED_AT=$(echo "$PR_STATUS" | grep -o '"merged_at":"[^"]*"' | cut -d'"' -f4)
+    
+    # Signal based on merge status
+    - |
+      if [ "$MERGED" = '"merged":true' ] || [ ! -z "$MERGED_AT" ]; then
+        echo ""
+        echo "🎉🎉🎉 SUCCESS! 🎉🎉🎉"
+        echo "=========================================="
+        echo "✅ GitHub Pull Request #$PR_NUMBER has been MERGED!"
+        echo "🔗 Branch: $RELEASE_BRANCH"
+        echo "📅 Merged at: $MERGED_AT"
+        echo "=========================================="
+        echo ""
+        echo "The changes from GitLab branch '$SOURCE_BRANCH' are now in GitHub main branch!"
+        exit 0
+      elif [ "$STATE" = "closed" ]; then
+        echo ""
+        echo "❌ GitHub Pull Request #$PR_NUMBER was CLOSED without merging."
+        echo "State: $STATE"
+        exit 1
+      elif [ "$STATE" = "open" ]; then
+        echo ""
+        echo "⏳ GitHub Pull Request #$PR_NUMBER is still OPEN."
+        echo "Waiting for merge approval on GitHub..."
+        exit 1
+      else
+        echo ""
+        echo "⚠️ Unable to determine PR status. Response:"
+        echo "$PR_STATUS"
+        exit 1
+      fi
+  
+  dependencies:
+    - pre_merge_job
+  
+  rules:
+    # Can be triggered manually anytime after pre_merge_job
+    # Or set up a scheduled pipeline to check periodically
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "develop/2025"
+      when: manual
+      allow_failure: true
+    # Uncomment below to run on schedule (set up in CI/CD > Schedules)
+    # - if: $CI_PIPELINE_SOURCE == "schedule"
+    #   when: always
