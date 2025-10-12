@@ -1,19 +1,20 @@
 stages:
-  - post_merge
+  - pre_merge
 
-post_merge_job:
-  stage: post_merge
+pre_merge_job:
+  stage: pre_merge
   variables:
     GIT_TERMINAL_PROMPT: "0"
   script:
-    # Extract the source branch name from the merge commit
-    # - SOURCE_BRANCH=$(git log -1 --pretty=%B | grep -oP "Merge branch '\K[^']+")
-    - SOURCE_BRANCH="feature/ft12"
-    - echo "Source branch that was merged:" $SOURCE_BRANCH
+    # Get the source branch name from the merge request
+    - SOURCE_BRANCH=$CI_MERGE_REQUEST_SOURCE_BRANCH_NAME
+    - echo "Source branch" $SOURCE_BRANCH
+    - echo "Target branch:" $CI_MERGE_REQUEST_TARGET_BRANCH_NAME
+    - echo "MR Title:" $CI_MERGE_REQUEST_TITLE
     
     # Configure git
     - git config --global user.email "16069257+KennyTC@users.noreply.github.com"
-    - git config --global user.name "GitLab CI Bot"
+    - git config --global user.name "GitLab Bot"
     
     # Setup SSH for GitHub
     - mkdir -p ~/.ssh
@@ -80,13 +81,15 @@ post_merge_job:
     # Checkout GitHub main branch
     - git checkout -b temp-github-main github/main
     
-    # Get the commits that were just merged into develop/2025
-    - git fetch origin $CI_COMMIT_REF_NAME
-    - git checkout origin/$CI_COMMIT_REF_NAME
+    # Fetch the source branch that will be merged
+    - git fetch origin $SOURCE_BRANCH
     
-    # Merge the current state of develop/2025 into GitHub main
+    # Get the current state of the target branch (develop/2025)
+    - git fetch origin $CI_MERGE_REQUEST_TARGET_BRANCH_NAME
+    
+    # Simulate the merge that will happen on develop/2025
     - git checkout temp-github-main
-    - git merge --no-ff --allow-unrelated-histories origin/$CI_COMMIT_REF_NAME -m "Sync from GitLab $CI_COMMIT_REF_NAME (merged $SOURCE_BRANCH)"
+    - git merge --no-ff --allow-unrelated-histories origin/$SOURCE_BRANCH -m "Sync from GitLab"
     
     # Create release branch based on the source branch name
     - RELEASE_BRANCH="release/$SOURCE_BRANCH"
@@ -103,15 +106,14 @@ post_merge_job:
         echo "ERROR: GITHUB_TOKEN is not set. Cannot create pull request."
         exit 1
       fi
-    - echo "GITHUB_TOKEN is set (length:" $GITHUB_TOKEN
-    - COMMIT_LIST=$(git log $CI_MERGE_REQUEST_DIFF_BASE_SHA..$CI_COMMIT_SHA --pretty=format:'%h %s')
+    - echo "GITHUB_TOKEN is set " $GITHUB_TOKEN
+    - COMMIT_LIST=$(git log origin/$CI_MERGE_REQUEST_TARGET_BRANCH_NAME..origin/$SOURCE_BRANCH --pretty=format:'%h %s')
     - PR_RESPONSE=$(curl -s -X POST -H "Authorization:token ${GITHUB_TOKEN}" -H "Accept:application/vnd.github.v3+json" https://api.github.com/repos/KennyTC/sync_from_gitlab/pulls -d "{\"title\":\"Sync from GitLab:$SOURCE_BRANCH\",\"head\":\"$RELEASE_BRANCH\",\"base\":\"main\",\"body\":\"Automated sync from GitLab.\\n\\nSource branch:\`$SOURCE_BRANCH\`\\nMerged into:\`$CI_COMMIT_REF_NAME\`\\n\\nCommits:\\n\`\`\`\\n$COMMIT_LIST\\n\`\`\`\"}")
     - echo "$PR_RESPONSE"
-    - PR_URL=$(echo "$PR_RESPONSE" | grep -oP '"html_url":"\K[^"]+')
-    - echo "Pull request created:" $PR_URL
   
-  only:
-    - develop/2025
   
-  when: on_success
-
+  rules:
+    # Only run for merge requests targeting develop/2025
+    # Requires manual trigger - click "Play" button after MR is approved
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "develop/2025"
+      when: manual
