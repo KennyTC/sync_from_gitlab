@@ -1,11 +1,12 @@
 stages:
   - pre_merge
-  - check_merge_status
 
 pre_merge_job:
   stage: pre_merge
   variables:
     GIT_TERMINAL_PROMPT: "0"
+    CHECK_INTERVAL: "60"  # Check every 60 seconds
+    MAX_WAIT_TIME: "7200"  # Maximum wait time: 2 hours (7200 seconds)
   script:
     # Get the source branch name from the merge request
     - SOURCE_BRANCH=$CI_MERGE_REQUEST_SOURCE_BRANCH_NAME
@@ -116,96 +117,100 @@ pre_merge_job:
     - PR_NUMBER=$(echo "$PR_RESPONSE" | grep -o '"number":[0-9]*' | grep -o '[0-9]*' | head -1)
     - PR_URL=$(echo "$PR_RESPONSE" | grep -o '"html_url":"[^"]*"' | head -1 | cut -d'"' -f4)
     - echo "✅ Pull Request created successfully!"
-    - echo "📝 PR Number: $PR_NUMBER"
-    - echo "🔗 PR URL: $PR_URL"
-    - echo "PR_NUMBER=$PR_NUMBER" >> pr_info.env
-    - echo "RELEASE_BRANCH=$RELEASE_BRANCH" >> pr_info.env
-    - echo "SOURCE_BRANCH=$SOURCE_BRANCH" >> pr_info.env
-  artifacts:
-    reports:
-      dotenv: pr_info.env
-    expire_in: 30 days
+    
+    # Verify PR number was captured
+    - |
+      if [ -z "$PR_NUMBER" ]; then
+        echo "❌ ERROR: Failed to capture PR number from response"
+        echo "PR Response was: " $PR_RESPONSE
+        exit 1
+      fi
+    
+    # Wait for PR to be merged on GitHub
+    - echo ""
+    - echo "⏳ Waiting for GitHub PR #" $PR_NUMBER "to be merged..."
+    - echo "🔍 Will check every" ${CHECK_INTERVAL} "seconds"
+    - echo "⏱️ Maximum wait time:" ${MAX_WAIT_TIME} "seconds (~$((MAX_WAIT_TIME/60)) minutes)"
+    - echo ""
+    - ELAPSED_TIME=0
+    - MERGED=false
+    - |
+      while [ $ELAPSED_TIME -lt $MAX_WAIT_TIME ]; do
+        echo "⏰ Checking PR status... (elapsed:" ${ELAPSED_TIME}"s /" ${MAX_WAIT_TIME}"s)"
+        
+        # Query GitHub API for PR status
+        PR_STATUS=$(curl -s -H "Authorization:token ${GITHUB_TOKEN}" -H "Accept:application/vnd.github.v3+json" https://api.github.com/repos/KennyTC/sync_from_gitlab/pulls/$PR_NUMBER)
+        
+        # Check if PR is merged
+        MERGED_CHECK=$(echo "$PR_STATUS" | grep -o '"merged":true')
+        MERGED_AT=$(echo "$PR_STATUS" | grep -o '"merged_at":"[^"]*"' | cut -d'"' -f4)
+        STATE=$(echo "$PR_STATUS" | grep -o '"state":"[^"]*"' | cut -d'"' -f4)
+        
+        if [ "$MERGED_CHECK" = '"merged":true' ] || [ ! -z "$MERGED_AT" ] && [ "$MERGED_AT" != "null" ]; then
+          echo ""
+          echo "🎉🎉🎉 SUCCESS! PR MERGED! 🎉🎉🎉"
+          echo "=========================================="
+          echo "✅ GitHub Pull Request #" $PR_NUMBER "has been MERGED!"
+          echo "🔗 Branch: " $RELEASE_BRANCH
+          echo "📅 Merged at: " $MERGED_AT
+          echo "=========================================="
+          echo ""
+          MERGED=true
+          break
+        elif [ "$STATE" = "closed" ]; then
+          echo ""
+          echo "❌ ERROR: GitHub Pull Request #" $PR_NUMBER "was CLOSED without merging!"
+          echo "Cannot proceed with GitLab merge."
+          exit 1
+        else
+          echo "   Status: OPEN - still waiting... (next check in" ${CHECK_INTERVAL}"s)"
+          sleep $CHECK_INTERVAL
+          ELAPSED_TIME=$((ELAPSED_TIME + CHECK_INTERVAL))
+        fi
+      done
+    
+    # Check if we timed out
+    - |
+      if [ "$MERGED" != "true" ]; then
+        echo ""
+        echo "Please check the PR status manually and run this job again if needed."
+        exit 1
+      fi
+    
+    # GitHub PR is merged - now merge to GitLab develop/2025
+    - echo ""
+    - echo "🔄 GitHub PR is merged! Now merging to GitLab develop/2025..."
+    - echo ""
+    
+    # Configure GitLab remote (should already be configured)
+    - git remote -v
+    
+    # Fetch latest develop/2025
+    - git fetch origin develop/2025
+    
+    # Checkout develop/2025
+    - git checkout -B develop/2025 origin/develop/2025
+    
+    # Merge the source branch into develop/2025
+    - echo "Merging" $SOURCE_BRANCH "into develop/2025..."
+    - git merge --no-ff origin/$SOURCE_BRANCH -m "Auto-merge from $SOURCE_BRANCH after GitHub PR #$PR_NUMBER was merged"
+    
+    # Push the merge to GitLab
+    - echo "Pushing to origin/develop/2025..."
+    - git push origin develop/2025
+    
+    - echo ""
+    - echo "✅✅✅ COMPLETE! ✅✅✅"
+    - echo "=========================================="
+    - echo "✅ GitHub PR #" $PR_NUMBER
+    - echo "✅ GitLab branch" $SOURCE_BRANCH
+    - echo "=========================================="
+    - echo ""
   
+  timeout: 3h  # Allow up to 3 hours for the entire job
   
   rules:
     # Only run for merge requests targeting develop/2025
     # Requires manual trigger - click "Play" button after MR is approved
     - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "develop/2025"
       when: manual
-
-check_github_pr_status:
-  stage: check_merge_status
-  variables:
-    GIT_TERMINAL_PROMPT: "0"
-  script:
-    - echo "Checking GitHub PR merge status..."
-    - echo "PR Number: $PR_NUMBER"
-    - echo "Source Branch: $SOURCE_BRANCH"
-    - echo "Release Branch: $RELEASE_BRANCH"
-    
-    # Check if GITHUB_TOKEN is set
-    - |
-      if [ -z "$GITHUB_TOKEN" ]; then
-        echo "ERROR: GITHUB_TOKEN is not set."
-        exit 1
-      fi
-    
-    # Check if PR_NUMBER exists
-    - |
-      if [ -z "$PR_NUMBER" ]; then
-        echo "ERROR: PR_NUMBER not found. Make sure pre_merge_job completed successfully."
-        exit 1
-      fi
-    
-    # Query GitHub API for PR status
-    - PR_STATUS=$(curl -s -H "Authorization:token ${GITHUB_TOKEN}" -H "Accept:application/vnd.github.v3+json" https://api.github.com/repos/KennyTC/sync_from_gitlab/pulls/$PR_NUMBER)
-    - echo "PR Status Response:"
-    - echo "$PR_STATUS" | grep -E '"state"|"merged"|"closed_at"|"merged_at"'
-    
-    # Check if PR is merged
-    - MERGED=$(echo "$PR_STATUS" | grep -o '"merged":true')
-    - STATE=$(echo "$PR_STATUS" | grep -o '"state":"[^"]*"' | cut -d'"' -f4)
-    - MERGED_AT=$(echo "$PR_STATUS" | grep -o '"merged_at":"[^"]*"' | cut -d'"' -f4)
-    
-    # Signal based on merge status
-    - |
-      if [ "$MERGED" = '"merged":true' ] || [ ! -z "$MERGED_AT" ]; then
-        echo ""
-        echo "🎉🎉🎉 SUCCESS! 🎉🎉🎉"
-        echo "=========================================="
-        echo "✅ GitHub Pull Request #$PR_NUMBER has been MERGED!"
-        echo "🔗 Branch: $RELEASE_BRANCH"
-        echo "📅 Merged at: $MERGED_AT"
-        echo "=========================================="
-        echo ""
-        echo "The changes from GitLab branch '$SOURCE_BRANCH' are now in GitHub main branch!"
-        exit 0
-      elif [ "$STATE" = "closed" ]; then
-        echo ""
-        echo "❌ GitHub Pull Request #$PR_NUMBER was CLOSED without merging."
-        echo "State: $STATE"
-        exit 1
-      elif [ "$STATE" = "open" ]; then
-        echo ""
-        echo "⏳ GitHub Pull Request #$PR_NUMBER is still OPEN."
-        echo "Waiting for merge approval on GitHub..."
-        exit 1
-      else
-        echo ""
-        echo "⚠️ Unable to determine PR status. Response:"
-        echo "$PR_STATUS"
-        exit 1
-      fi
-  
-  dependencies:
-    - pre_merge_job
-  
-  rules:
-    # Can be triggered manually anytime after pre_merge_job
-    # Or set up a scheduled pipeline to check periodically
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "develop/2025"
-      when: manual
-      allow_failure: true
-    # Uncomment below to run on schedule (set up in CI/CD > Schedules)
-    # - if: $CI_PIPELINE_SOURCE == "schedule"
-    #   when: always
