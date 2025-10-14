@@ -6,7 +6,7 @@ pre_merge_job:
   variables:
     GIT_TERMINAL_PROMPT: "0"
     CHECK_INTERVAL: "60"  # Check every 60 seconds
-    MAX_WAIT_TIME: "7200"  # Maximum wait time: 2 hours (7200 seconds)
+    MAX_WAIT_TIME: "7200"  
   script:
     # Get the source branch name from the merge request
     - SOURCE_BRANCH=$CI_MERGE_REQUEST_SOURCE_BRANCH_NAME
