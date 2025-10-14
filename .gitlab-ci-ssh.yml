@@ -123,7 +123,7 @@ pre_merge_job:
         
         # Query GitHub API for PR status
         PR_STATUS=$(curl -s -H "Authorization:token ${GITHUB_TOKEN}" -H "Accept:application/vnd.github.v3+json" https://api.github.com/repos/KennyTC/sync_from_gitlab/pulls/$PR_NUMBER)
-        
+        echo "PR Status:" $PR_STATUS
         # Check if PR is merged
         MERGED_CHECK=$(echo "$PR_STATUS" | grep -o '"merged":true')
         MERGED_AT=$(echo "$PR_STATUS" | grep -o '"merged_at":"[^"]*"' | cut -d'"' -f4)
