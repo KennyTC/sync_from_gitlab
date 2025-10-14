@@ -114,7 +114,8 @@ pre_merge_job:
     - echo "$PR_RESPONSE"
     
     # Extract PR number and URL from response
-    - PR_NUMBER=$(echo "$PR_RESPONSE" | grep -o '"number":[0-9]*' | grep -o '[0-9]*' | head -1)
+    - PR_NUMBER=$(echo "$PR_RESPONSE" | grep -o '"number":[[:space:]]*[0-9]*' | grep -o '[0-9]*' | head -1)
+    #- PR_NUMBER=$(echo "$PR_RESPONSE" | grep -o '"number":[0-9]*' | grep -o '[0-9]*' | head -1)
     #- PR_URL=$(echo "$PR_RESPONSE" | grep -o '"html_url":"[^"]*"' | head -1 | cut -d'"' -f4)
     - echo "✅ Pull Request created successfully!"
     
