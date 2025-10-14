@@ -124,12 +124,16 @@ pre_merge_job:
         # Query GitHub API for PR status
         PR_STATUS=$(curl -s -H "Authorization:token ${GITHUB_TOKEN}" -H "Accept:application/vnd.github.v3+json" https://api.github.com/repos/KennyTC/sync_from_gitlab/pulls/$PR_NUMBER)
         echo "PR Status:" $PR_STATUS
-        # Check if PR is merged
-        MERGED_CHECK=$(echo "$PR_STATUS" | grep -o '"merged":true')
-        MERGED_AT=$(echo "$PR_STATUS" | grep -o '"merged_at":"[^"]*"' | cut -d'"' -f4)
-        STATE=$(echo "$PR_STATUS" | grep -o '"state":"[^"]*"' | cut -d'"' -f4)
+        # Check if PR is merged (handle JSON with spaces)
+        MERGED_CHECK=$(echo "$PR_STATUS" | grep -o '"merged"[[:space:]]*:[[:space:]]*true')
+        echo "MERGED_CHECK:" $MERGED_CHECK
+        MERGED_AT=$(echo "$PR_STATUS" | grep -o '"merged_at"[[:space:]]*:[[:space:]]*"[^"]*"' | sed 's/.*"merged_at"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
+        echo "MERGED_AT:" $MERGED_AT
+        STATE=$(echo "$PR_STATUS" | grep -o '"state"[[:space:]]*:[[:space:]]*"[^"]*"' | sed 's/.*"state"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
+        echo "STATE:" $STATE
         
-        if [ "$MERGED_CHECK" = '"merged":true' ] || [ ! -z "$MERGED_AT" ] && [ "$MERGED_AT" != "null" ]; then
+        if [ ! -z "$MERGED_CHECK" ] || [ ! -z "$MERGED_AT" ] && [ "$MERGED_AT" != "null" ]; then
+          echo ""
           echo ""
           echo "🎉🎉🎉 SUCCESS! PR MERGED! 🎉🎉🎉"
           echo "=========================================="
