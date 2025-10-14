@@ -124,12 +124,12 @@ pre_merge_job:
         # Query GitHub API for PR status
         PR_STATUS=$(curl -s -H "Authorization:token ${GITHUB_TOKEN}" -H "Accept:application/vnd.github.v3+json" https://api.github.com/repos/KennyTC/sync_from_gitlab/pulls/$PR_NUMBER)
         echo "PR Status:" $PR_STATUS
-        # Check if PR is merged (handle JSON with spaces)
-        MERGED_CHECK=$(echo "$PR_STATUS" | grep -o '"merged"[[:space:]]*:[[:space:]]*true')
+        # Check if PR is merged (handle JSON with spaces, || true prevents exit on no match)
+        MERGED_CHECK=$(echo "$PR_STATUS" | grep -o '"merged"[[:space:]]*:[[:space:]]*true' || true)
         echo "MERGED_CHECK:" $MERGED_CHECK
-        MERGED_AT=$(echo "$PR_STATUS" | grep -o '"merged_at"[[:space:]]*:[[:space:]]*"[^"]*"' | sed 's/.*"merged_at"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
+        MERGED_AT=$(echo "$PR_STATUS" | grep -o '"merged_at"[[:space:]]*:[[:space:]]*"[^"]*"' | sed 's/.*"merged_at"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/' || true)
         echo "MERGED_AT:" $MERGED_AT
-        STATE=$(echo "$PR_STATUS" | grep -o '"state"[[:space:]]*:[[:space:]]*"[^"]*"' | sed 's/.*"state"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
+        STATE=$(echo "$PR_STATUS" | grep -o '"state"[[:space:]]*:[[:space:]]*"[^"]*"' | sed 's/.*"state"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/' || true)
         echo "STATE:" $STATE
         
         if [ ! -z "$MERGED_CHECK" ] || [ ! -z "$MERGED_AT" ] && [ "$MERGED_AT" != "null" ]; then
@@ -196,8 +196,8 @@ pre_merge_job:
           echo ""
           echo "🎉🎉🎉 SUCCESS! 🎉🎉🎉"
           echo "=========================================="
-          echo "✅ GitHub PR #${PR_NUMBER} - MERGED"
-          echo "✅ GitLab MR #${CI_MERGE_REQUEST_IID} - MERGED"
+          echo "✅ GitHub PR" ${PR_NUMBER}
+          echo "✅ GitLab MR" ${CI_MERGE_REQUEST_IID} "- MERGED"
           echo "✅ Branch ${SOURCE_BRANCH} → ${CI_MERGE_REQUEST_TARGET_BRANCH_NAME}"
           echo "=========================================="
         else
@@ -208,14 +208,15 @@ pre_merge_job:
           echo "  - Additional approvals required"
           echo "  - Branch protection rules not met"
           echo ""
-          echo "Please check GitLab MR #${CI_MERGE_REQUEST_IID} manually"
           exit 1
         fi
       else
-        echo "❌ERROR:CI_MERGE_REQUEST_IID not available"
+        echo "❌ ERROR: CI_MERGE_REQUEST_IID not available"
         echo "This pipeline must run in merge request context"
         exit 1
       fi
+    
+    - echo ""
   
   timeout: 3h  # Allow up to 3 hours for the entire job
   
