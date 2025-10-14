@@ -37,16 +37,6 @@ pre_merge_job:
     - ssh-keyscan github.com >> ~/.ssh/known_hosts
     - chmod 644 ~/.ssh/known_hosts
     - echo "SSH key configured"
-
-    # Debug: Check SSH key
-    # - echo "Checking SSH private key file..."
-    # - ls -la ~/.ssh/
-    # - echo "First line of private key:"
-    # - head -n 1 ~/.ssh/id_rsa
-    # - echo "Last line of private key:"
-    # - tail -n 1 ~/.ssh/id_rsa
-    # - echo "SSH key fingerprint:"
-    # - ssh-keygen -l -f ~/.ssh/id_rsa || echo "Failed to get fingerprint"
     
     # Debug: Check SSH key
     - echo "Checking SSH private key file..."
@@ -71,14 +61,6 @@ pre_merge_job:
     
     # Fetch from GitHub
     - git fetch github
-    
-    # # Test push - create a simple test file and push to GitHub
-    # - echo "Testing SSH authentication to GitHub at $(date)" > test_push_ssh.txt
-    # - git checkout -b test-push-ssh-branch
-    # - git add test_push_ssh.txt
-    # - git commit -m "Test SSH push from GitLab CI"
-    # - git push github test-push-ssh-branch
-    # - echo "Test SSH push successful!"
     
     # Checkout GitHub main branch
     - git checkout -b temp-github-main github/main
@@ -105,7 +87,7 @@ pre_merge_job:
     # Check if GITHUB_TOKEN is set
     - |
       if [ -z "$GITHUB_TOKEN" ]; then
-        echo "ERROR: GITHUB_TOKEN is not set. Cannot create pull request."
+        echo "ERROR:GITHUB_TOKEN is not set. Cannot create pull request."
         exit 1
       fi
     - echo "GITHUB_TOKEN is set " $GITHUB_TOKEN
@@ -114,23 +96,24 @@ pre_merge_job:
     - echo "$PR_RESPONSE"
     
     # Extract PR number and URL from response
-    - PR_NUMBER=$(echo "$PR_RESPONSE" | grep -o '"number":[0-9]*' | grep -o '[0-9]*' | head -1)
+    - PR_NUMBER=$(echo "$PR_RESPONSE" | grep -o '"number":[[:space:]]*[0-9]*' | grep -o '[0-9]*' | head -1)
+    #- PR_NUMBER=$(echo "$PR_RESPONSE" | grep -o '"number":[0-9]*' | grep -o '[0-9]*' | head -1)
     #- PR_URL=$(echo "$PR_RESPONSE" | grep -o '"html_url":"[^"]*"' | head -1 | cut -d'"' -f4)
-    - echo "✅ Pull Request created successfully!"
+    - echo "✅ Pull Request created successfully!" $PR_NUMBER
     
     # Verify PR number was captured
     - |
       if [ -z "$PR_NUMBER" ]; then
-        echo "❌ ERROR: Failed to capture PR number from response"
-        echo "PR Response was: " $PR_RESPONSE
+        echo "❌ERROR Failed to capture PR number from response"
+        echo "PR Response was:" $PR_RESPONSE
         exit 1
       fi
     
     # Wait for PR to be merged on GitHub
     - echo ""
-    - echo "⏳ Waiting for GitHub PR #" $PR_NUMBER "to be merged..."
-    - echo "🔍 Will check every" ${CHECK_INTERVAL} "seconds"
-    - echo "⏱️ Maximum wait time:" ${MAX_WAIT_TIME} "seconds (~$((MAX_WAIT_TIME/60)) minutes)"
+    - echo "⏳ Waiting for GitHub PR" $PR_NUMBER
+    - echo "🔍 Will check every" ${CHECK_INTERVAL}
+    - echo "⏱️ Maximum wait time:" ${MAX_WAIT_TIME} 
     - echo ""
     - ELAPSED_TIME=0
     - MERGED=false
@@ -151,19 +134,19 @@ pre_merge_job:
           echo "🎉🎉🎉 SUCCESS! PR MERGED! 🎉🎉🎉"
           echo "=========================================="
           echo "✅ GitHub Pull Request #" $PR_NUMBER "has been MERGED!"
-          echo "🔗 Branch: " $RELEASE_BRANCH
-          echo "📅 Merged at: " $MERGED_AT
+          echo "🔗 Branch:" $RELEASE_BRANCH
+          echo "📅 Merged at:" $MERGED_AT
           echo "=========================================="
           echo ""
           MERGED=true
           break
         elif [ "$STATE" = "closed" ]; then
           echo ""
-          echo "❌ ERROR: GitHub Pull Request #" $PR_NUMBER "was CLOSED without merging!"
+          echo "❌ERROR:GitHub Pull Request" $PR_NUMBER "was CLOSED without merging!"
           echo "Cannot proceed with GitLab merge."
           exit 1
         else
-          echo "   Status: OPEN - still waiting... (next check in" ${CHECK_INTERVAL}"s)"
+          echo "Status:OPEN-still waiting... (next check in" ${CHECK_INTERVAL}"s)"
           sleep $CHECK_INTERVAL
           ELAPSED_TIME=$((ELAPSED_TIME + CHECK_INTERVAL))
         fi
@@ -193,7 +176,7 @@ pre_merge_job:
     
     # Merge the source branch into develop/2025
     - echo "Merging" $SOURCE_BRANCH "into develop/2025..."
-    - git merge --no-ff origin/$SOURCE_BRANCH -m "Auto-merge from $SOURCE_BRANCH after GitHub PR #$PR_NUMBER was merged"
+    - git merge --no-ff origin/$SOURCE_BRANCH -m "Auto-merge from $SOURCE_BRANCH after GitHub PR"
     
     # Push the merge to GitLab
     - echo "Pushing to origin/develop/2025..."
