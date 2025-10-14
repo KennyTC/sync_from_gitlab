@@ -164,34 +164,58 @@ pre_merge_job:
         exit 1
       fi
     
-    # GitHub PR is merged - now merge to GitLab develop/2025
+    # GitHub PR is merged - now accept the GitLab MR
     - echo ""
-    - echo "🔄 GitHub PR is merged! Now merging to GitLab develop/2025..."
+    - echo "🔄 GitHub PR is merged! Now auto-accepting GitLab MR..."
     - echo ""
     
-    # Configure GitLab remote (should already be configured)
-    - git remote -v
-    
-    # Fetch latest develop/2025
-    - git fetch origin develop/2025
-    
-    # Checkout develop/2025
-    - git checkout -B develop/2025 origin/develop/2025
-    
-    # Merge the source branch into develop/2025
-    - echo "Merging" $SOURCE_BRANCH "into develop/2025..."
-    - git merge --no-ff origin/$SOURCE_BRANCH -m "Auto-merge from $SOURCE_BRANCH after GitHub PR"
-    
-    # Push the merge to GitLab
-    - echo "Pushing to origin/develop/2025..."
-    - git push origin develop/2025
-    
+    # Automatically accept the GitLab MR using GitLab API
+    - echo "🎯 GitLab MR Details:"
+    - echo "MR IID:" $CI_MERGE_REQUEST_IID
+    - echo "Source Branch:" $SOURCE_BRANCH
+    - echo "Target Branch:" $CI_MERGE_REQUEST_TARGET_BRANCH_NAME
     - echo ""
-    - echo "✅✅✅ COMPLETE! ✅✅✅"
-    - echo "=========================================="
-    - echo "✅ GitHub PR #" $PR_NUMBER
-    - echo "✅ GitLab branch" $SOURCE_BRANCH
-    - echo "=========================================="
+    - |
+      if [ ! -z "$CI_MERGE_REQUEST_IID" ]; then
+        echo "Calling GitLab API to accept MR" ${CI_MERGE_REQUEST_IID}
+        MR_ACCEPT_RESPONSE=$(curl -s -X PUT -H "PRIVATE-TOKEN: ${CI_JOB_TOKEN}" \
+          "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/merge_requests/${CI_MERGE_REQUEST_IID}/merge" \
+          -d "merge_commit_message=Auto-merged after GitHub PR #${PR_NUMBER} approval" \
+          -d "should_remove_source_branch=false" \
+          -d "merge_when_pipeline_succeeds=false")
+        
+        echo ""
+        echo "GitLab API Response:"
+        echo "$MR_ACCEPT_RESPONSE"
+        echo ""
+        
+        # Check if merge was successful
+        MR_STATE=$(echo "$MR_ACCEPT_RESPONSE" | grep -o '"state"[[:space:]]*:[[:space:]]*"[^"]*"' | sed 's/.*"state"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/' || true)
+        
+        if [ "$MR_STATE" = "merged" ]; then
+          echo ""
+          echo "🎉🎉🎉 SUCCESS! 🎉🎉🎉"
+          echo "=========================================="
+          echo "✅ GitHub PR" ${PR_NUMBER}
+          echo "✅ GitLab MR" ${CI_MERGE_REQUEST_IID} "- MERGED"
+          echo "✅ Branch ${SOURCE_BRANCH} → ${CI_MERGE_REQUEST_TARGET_BRANCH_NAME}"
+          echo "=========================================="
+        else
+          echo ""
+          echo "⚠️ GitLab MR State:" ${MR_STATE}
+          echo "Possible reasons:"
+          echo "  - Merge conflicts exist"
+          echo "  - Additional approvals required"
+          echo "  - Branch protection rules not met"
+          echo ""
+          exit 1
+        fi
+      else
+        echo "❌ ERROR: CI_MERGE_REQUEST_IID not available"
+        echo "This pipeline must run in merge request context"
+        exit 1
+      fi
+    
     - echo ""
   
   timeout: 3h  # Allow up to 3 hours for the entire job
